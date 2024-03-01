@@ -31,7 +31,7 @@ int ManagerOptions()
     return t;
 }
 
-int EmployeeOptions()
+int Options()
 {
     cout<<"What you want to do??\n";
     cout<<"1. Change Password\n";

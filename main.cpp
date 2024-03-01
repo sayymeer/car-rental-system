@@ -26,7 +26,7 @@ const string pass = "firstnews";
 const string database = "rental";
 
 int finePerDay = 10;
-int employeedis = 0.85;
+float employeedis = 0.85;
 
 string getCurrentDate()
 {
@@ -53,7 +53,7 @@ int dateDiffInDays(const string &dateStr1)
     auto timePoint2 = stringToTimePoint(today);
     auto diffInSeconds = chrono::duration_cast<chrono::seconds>(timePoint2 - timePoint1).count();
     auto t = (diffInSeconds / (24 * 60 * 60));
-    return t>0?t:0;
+    return t > 0 ? t : 0;
 }
 
 class DatabaseConn
@@ -119,7 +119,7 @@ public:
         {
             sql::PreparedStatement *pstmt = conn->prepareStatement("UPDATE users SET fine = ? WHERE username = ?");
             pstmt->setInt(1, u.fine);
-            pstmt->setString(2,u.username);
+            pstmt->setString(2, u.username);
             pstmt->execute();
             delete pstmt;
             return true;
@@ -494,19 +494,23 @@ public:
     }
 };
 
-class Employee
+class EmployeeCustomer
 {
 private:
     UserTable *utb;
     CarTable *cartb;
     User *user;
+    float priceFactor = 1;
 
 public:
-    Employee(UserTable *tb, CarTable *car, User *u)
+    EmployeeCustomer(UserTable *tb, CarTable *car, User *u)
     {
         this->utb = tb;
         this->cartb = car;
         this->user = u;
+        if(u->role=="employee"){
+            priceFactor = employeedis;
+        }
     }
     void changePass()
     {
@@ -530,7 +534,7 @@ public:
         int t = 0;
         for (auto i : v1)
         {
-            i.price = employeedis * i.price;
+            i.price = priceFactor * i.price;
             if (i.availability == user->username)
             {
                 printDashes(20);
@@ -553,7 +557,7 @@ public:
         {
             if (i.availability == "admin")
             {
-                i.price = employeedis * i.price;
+                i.price = priceFactor * i.price;
                 printDashes(20);
                 PrintCarDetails(i);
                 t++;
@@ -577,7 +581,7 @@ public:
         cout << "List of available cars:\n";
         this->seeAvailableCars();
         int id;
-        cout << "Enter id of Car: ";
+        cout << "Enter id of Car you want to Rent: ";
         cin >> id;
         Car c = cartb->getCar(id);
         if (c.availability == "admin")
@@ -611,7 +615,7 @@ public:
             c.due_date = "";
             c.availability = "admin";
             cartb->updateCarDetails(c);
-            cout<<"Car returned successfully\n";
+            cout << "Car returned successfully\n";
             this->seeFine();
         }
         else
@@ -624,10 +628,6 @@ public:
         auto u = utb->getUserByUsername(user->username, user->password);
         cout << "==>  Your fine is " << u.fine << "\n\n";
     }
-};
-
-void CustomerHandler(){
-
 };
 
 int main(int argc, const char **argv)
@@ -683,10 +683,10 @@ int main(int argc, const char **argv)
                 break;
             }
         }
-        else if (currUser.role == "employee")
+        else if (currUser.role == "employee" || currUser.role == "customer")
         {
-            Employee employee(&users, &cars, &currUser);
-            int opt = EmployeeOptions();
+            EmployeeCustomer employee(&users, &cars, &currUser);
+            int opt = Options();
             switch (opt)
             {
             case 1:
@@ -711,10 +711,6 @@ int main(int argc, const char **argv)
                 return 0;
                 break;
             }
-        }
-        else if (currUser.role == "customer")
-        {
-            CustomerHandler();
         }
     }
     return 0;
