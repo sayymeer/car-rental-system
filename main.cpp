@@ -21,8 +21,8 @@ using namespace std;
 #include "models.cpp"
 
 const string host = "localhost";
-const string user = "sameer";
-const string pass = "firstnews";
+const string user = "user";
+const string pass = "password";
 const string database = "rental";
 
 int finePerDay = 10;
