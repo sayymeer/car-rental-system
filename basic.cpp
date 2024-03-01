@@ -22,11 +22,27 @@ int ManagerOptions()
     cout << "6. Delete a Car" << endl;
     cout << "7. See All cars" << endl;
     cout << "8. Rent car" << endl;
-    cout << "9. Exit" << endl;
+    cout << "9. Return car"<<endl;
+    cout << "10. Exit" << endl;
     cout << "Select one of the options: ";
     int t;
     cin >> t;
     cout << "\n";
+    return t;
+}
+
+int EmployeeOptions()
+{
+    cout<<"What you want to do??\n";
+    cout<<"1. Change Password\n";
+    cout<<"2. See Rented Cars\n";
+    cout<<"3. See Available Cars\n";
+    cout<<"4. Rent a car\n";
+    cout<<"5. Return a car\n";
+    cout<<"6. See Fine\n";
+    cout<<"7. Exit\n";
+    cout<<"Select one of the options: ";
+    int t;cin>>t;cout<<"\n";
     return t;
 }
 
@@ -75,3 +91,4 @@ int CarUpdate()
     cout << "\n";
     return i;
 };
+

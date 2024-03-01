@@ -2,6 +2,9 @@
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
+#include <ctime>
+#include <iomanip>
+#include <chrono>
 
 // MySQL Libraries
 #include "mysql_connection.h"
@@ -21,6 +24,37 @@ const string host = "localhost";
 const string user = "sameer";
 const string pass = "firstnews";
 const string database = "rental";
+
+int finePerDay = 10;
+int employeedis = 0.85;
+
+string getCurrentDate()
+{
+    time_t currentTime = time(nullptr);
+    tm *localTime = localtime(&currentTime);
+    ostringstream oss;
+    oss << put_time(localTime, "%Y-%m-%d");
+    return oss.str();
+}
+string today;
+
+chrono::system_clock::time_point stringToTimePoint(const string &dateStr)
+{
+    tm tm = {};
+    istringstream ss(dateStr);
+    ss >> get_time(&tm, "%Y-%m-%d");
+    time_t tt = mktime(&tm);
+    return chrono::system_clock::from_time_t(tt);
+}
+
+int dateDiffInDays(const string &dateStr1)
+{
+    auto timePoint1 = stringToTimePoint(dateStr1);
+    auto timePoint2 = stringToTimePoint(today);
+    auto diffInSeconds = chrono::duration_cast<chrono::seconds>(timePoint2 - timePoint1).count();
+    auto t = (diffInSeconds / (24 * 60 * 60));
+    return t>0?t:0;
+}
 
 class DatabaseConn
 {
@@ -63,19 +97,55 @@ public:
                 string pass = rs->getString("password");
                 int id = rs->getInt("id");
                 string role = rs->getString("role");
+                int fine = rs->getInt("fine");
                 User u1(username, password, role);
                 if (password == pass)
                     u1.authorise();
                 u1.setId(id);
+                u1.setFine(fine);
                 return u1;
             }
         }
         catch (const sql::SQLException &e)
         {
-            std::cerr << "SQL error: " << e.what() << '\n';
+            cerr << "SQL error: " << e.what() << '\n';
         }
         User defaultUser("", "", "");
         return defaultUser;
+    }
+    bool saveUser(User u)
+    {
+        try
+        {
+            sql::PreparedStatement *pstmt = conn->prepareStatement("UPDATE users SET fine = ? WHERE username = ?");
+            pstmt->setInt(1, u.fine);
+            pstmt->setString(2,u.username);
+            pstmt->execute();
+            delete pstmt;
+            return true;
+        }
+        catch (const sql::SQLException &e)
+        {
+            cerr << "SQL error: " << e.what() << '\n';
+            return false;
+        }
+    }
+    bool changePass(string username, string password)
+    {
+        try
+        {
+            sql::PreparedStatement *pstmt = conn->prepareStatement("UPDATE users SET password = ? WHERE username = ?");
+            pstmt->setString(1, password);
+            pstmt->setString(2, username);
+            pstmt->execute();
+            delete pstmt;
+            return true;
+        }
+        catch (const sql::SQLException &e)
+        {
+            cerr << "SQL Error: " << e.what() << '\n';
+            return false;
+        }
     }
     bool addUser(string username, string password, string role)
     {
@@ -91,7 +161,7 @@ public:
         }
         catch (const sql::SQLException &e)
         {
-            std::cerr << "SQL Error: " << e.what() << '\n';
+            cerr << "SQL Error: " << e.what() << '\n';
             return false;
         }
     }
@@ -118,7 +188,7 @@ void PrintCarDetails(Car currCarr)
     cout << "Car ID: " << currCarr.id << endl;
     cout << "Model: " << currCarr.model << endl;
     cout << "Health: " << currCarr.health << endl;
-    cout << "Availability: " << (currCarr.availability == "admin" ? "Available For Renting" : currCarr.availability)  << endl;
+    cout << "Availability: " << (currCarr.availability == "admin" ? "Available For Renting" : currCarr.availability) << endl;
     cout << "Price: " << currCarr.price << endl;
     cout << "Due Date: " << (currCarr.due_date == "" ? "Not Rented" : currCarr.due_date) << endl;
 }
@@ -151,8 +221,9 @@ public:
             return false;
         }
     }
-    void showCars()
+    vector<Car> showCars()
     {
+        vector<Car> result;
         try
         {
             sql::PreparedStatement *pt = conn->prepareStatement("SELECT * FROM cars;");
@@ -160,18 +231,18 @@ public:
 
             while (r->next())
             {
-                printDashes(20);
                 int id = r->getInt("id");
                 string model = r->getString("model");
                 string health = r->getString("health");
                 string availability = r->getString("availability");
                 int price = r->getInt("price");
                 string due_date = r->getString("due_date");
-                Car temp(model,health,price);temp.setAvailability(availability);temp.setDate(due_date);temp.setId(id);
-                PrintCarDetails(temp);
+                Car temp(model, health, price);
+                temp.setAvailability(availability);
+                temp.setDate(due_date);
+                temp.setId(id);
+                result.push_back(temp);
             }
-            printDashes(20);
-
             delete r;
             delete pt;
         }
@@ -179,6 +250,7 @@ public:
         {
             std::cerr << e.what() << '\n';
         }
+        return result;
     }
     bool deleteCar(int id)
     {
@@ -232,11 +304,20 @@ public:
     {
         try
         {
-            sql::PreparedStatement *pt = conn->prepareStatement("UPDATE cars SET model = ?, health = ?, price = ? WHERE id = ?;");
+            sql::PreparedStatement *pt = conn->prepareStatement("UPDATE cars SET model = ?, health = ?, price = ?,availability = ? , due_date = ? WHERE id = ?;");
             pt->setString(1, cr.model);
             pt->setString(2, cr.health);
             pt->setInt(3, cr.price);
-            pt->setInt(4, cr.id);
+            pt->setString(4, cr.availability);
+            if (cr.due_date == "")
+            {
+                pt->setNull(5, sql::DataType::DATE);
+            }
+            else
+            {
+                pt->setString(5, cr.due_date);
+            }
+            pt->setInt(6, cr.id);
             pt->execute();
             delete pt;
             return true;
@@ -247,13 +328,14 @@ public:
             return false;
         }
     }
-    bool rentCar(int id,string username,string due_date){
+    bool rentCar(int id, string username, string due_date)
+    {
         try
         {
             sql::PreparedStatement *pt = conn->prepareStatement("UPDATE cars SET availability = ?, due_date = ? WHERE id = ?;");
-            pt->setString(1,username);
-            pt->setString(2,due_date);
-            pt->setInt(3,id);
+            pt->setString(1, username);
+            pt->setString(2, due_date);
+            pt->setInt(3, id);
             pt->execute();
             delete pt;
             return true;
@@ -318,7 +400,13 @@ public:
     }
     void SeeCars()
     {
-        cartb->showCars();
+        vector<Car> v1 = cartb->showCars();
+        for (auto i : v1)
+        {
+            printDashes(20);
+            PrintCarDetails(i);
+        }
+        printDashes(20);
     }
     void DeleteCarById()
     {
@@ -342,7 +430,9 @@ public:
         cin >> id;
         cout << "\n";
         Car currCar = cartb->getCar(id);
-        printDashes(20);PrintCarDetails(currCar);printDashes(20);
+        printDashes(20);
+        PrintCarDetails(currCar);
+        printDashes(20);
         int n = CarUpdate();
         switch (n)
         {
@@ -360,13 +450,180 @@ public:
         cartb->updateCarDetails(currCar);
         cout << "\nUpdated!!!\n\n";
     }
-    void RentCar(){
-        cartb->rentCar(1,"dopa","12, July, 2023");
+    void RentCar()
+    {
+        cout << "Enter Id of the car: ";
+        int id;
+        cin >> id;
+        Car currCar = cartb->getCar(id);
+        if (currCar.availability != "admin")
+        {
+            cout << "==> Car Not Available!! Rented By: " << currCar.availability << "\n";
+            return;
+        }
+        cout << "\nEnter Username: ";
+        string username;
+        cin >> username;
+        User u = tb->getUserByUsername(username, "");
+        if (u.username == "")
+        {
+            cout << "\n\nUsername doesn't exist!!\n\n";
+            return;
+        }
+        cout << "Enter Due-Date(YYYY-MM-DD): ";
+        cin >> currCar.due_date;
+        currCar.availability = username;
+        cartb->updateCarDetails(currCar);
+        cout << "\nRented Successfully!!\n\n";
+    }
+    void returnCar()
+    {
+        cout << "Enter Id of the car: ";
+        int id;
+        cin >> id;
+        Car currCar = cartb->getCar(id);
+        if (currCar.availability == "admin")
+        {
+            cout << "==> Car is Already in store\n";
+            return;
+        }
+        currCar.availability = "admin";
+        currCar.due_date = "";
+        cartb->updateCarDetails(currCar);
+        cout << "Car Returned Successfully!!\n\n";
     }
 };
 
-void EmployeeHandler(){
+class Employee
+{
+private:
+    UserTable *utb;
+    CarTable *cartb;
+    User *user;
 
+public:
+    Employee(UserTable *tb, CarTable *car, User *u)
+    {
+        this->utb = tb;
+        this->cartb = car;
+        this->user = u;
+    }
+    void changePass()
+    {
+        string password;
+        cout << "Enter Password: ";
+        cin >> password;
+        cout << "\n";
+        if (utb->changePass(this->user->username, password))
+        {
+            cout << "Password Changed Successfully\n\n";
+        }
+        else
+        {
+            cout << "Error Changing pass\n\n";
+        }
+    }
+    void seeRentedCars()
+    {
+        cout << "Your Rented cars:\n\n";
+        vector<Car> v1 = cartb->showCars();
+        int t = 0;
+        for (auto i : v1)
+        {
+            i.price = employeedis * i.price;
+            if (i.availability == user->username)
+            {
+                printDashes(20);
+                PrintCarDetails(i);
+                t++;
+            }
+        }
+        printDashes(20);
+        if (t == 0)
+        {
+            cout << "0 Rented Cars\n";
+        }
+        printDashes(20);
+    }
+    void seeAvailableCars()
+    {
+        vector<Car> v1 = cartb->showCars();
+        int t = 0;
+        for (auto i : v1)
+        {
+            if (i.availability == "admin")
+            {
+                i.price = employeedis * i.price;
+                printDashes(20);
+                PrintCarDetails(i);
+                t++;
+            }
+        }
+        printDashes(20);
+
+        if (t == 0)
+        {
+            cout << "0 Available cars\n";
+        }
+        printDashes(20);
+    }
+    void rentCar()
+    {
+        if (user->record == "bad")
+        {
+            cout << "You record is bad sorry!!\n\n";
+            return;
+        }
+        cout << "List of available cars:\n";
+        this->seeAvailableCars();
+        int id;
+        cout << "Enter id of Car: ";
+        cin >> id;
+        Car c = cartb->getCar(id);
+        if (c.availability == "admin")
+        {
+            c.availability = this->user->username;
+            string date;
+            cout << "Enter due date(YYYY-MM-DD): ";
+            cin >> date;
+            c.due_date = date;
+            cartb->updateCarDetails(c);
+            cout << "Car rented successfully\n";
+        }
+        else
+        {
+            cout << "Car not available\n"
+                 << endl;
+        }
+    }
+    void returnCar()
+    {
+        this->seeRentedCars();
+        cout << "Enter id of car to return: ";
+        int id;
+        cin >> id;
+        auto c = cartb->getCar(id);
+        if (c.availability == this->user->username)
+        {
+            int fine = dateDiffInDays(c.due_date) * finePerDay;
+            this->user->fine += fine;
+            utb->saveUser(*(this->user));
+            c.due_date = "";
+            c.availability = "admin";
+            cartb->updateCarDetails(c);
+            cout<<"Car returned successfully\n";
+            this->seeFine();
+        }
+        else
+        {
+            cout << "This car is not with you\n";
+        }
+    }
+    void seeFine()
+    {
+        auto u = utb->getUserByUsername(user->username, user->password);
+        cout << "==>  Your fine is " << u.fine << "\n\n";
+    }
 };
 
 void CustomerHandler(){
@@ -375,6 +632,8 @@ void CustomerHandler(){
 
 int main(int argc, const char **argv)
 {
+    today = getCurrentDate();
+    cout << "Today is " << today << endl;
     DatabaseConn RentalDB(host, user, pass, database);
     UserTable users(&RentalDB);
     CarTable cars(&RentalDB);
@@ -416,6 +675,9 @@ int main(int argc, const char **argv)
             case 8:
                 mang.RentCar();
                 break;
+            case 9:
+                mang.returnCar();
+                break;
             default:
                 return 0;
                 break;
@@ -423,7 +685,32 @@ int main(int argc, const char **argv)
         }
         else if (currUser.role == "employee")
         {
-            EmployeeHandler();
+            Employee employee(&users, &cars, &currUser);
+            int opt = EmployeeOptions();
+            switch (opt)
+            {
+            case 1:
+                employee.changePass();
+                break;
+            case 2:
+                employee.seeRentedCars();
+                break;
+            case 3:
+                employee.seeAvailableCars();
+                break;
+            case 4:
+                employee.rentCar();
+                break;
+            case 5:
+                employee.returnCar();
+                break;
+            case 6:
+                employee.seeFine();
+                break;
+            default:
+                return 0;
+                break;
+            }
         }
         else if (currUser.role == "customer")
         {

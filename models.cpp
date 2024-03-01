@@ -6,9 +6,11 @@ class User
 public:
     bool isAuthorised = false;
     int id;
+    string record;
     string username;
     string password;
     string role;
+    int fine;
     User(string username, string password, string role)
     {
         this->username = username;
@@ -22,6 +24,12 @@ public:
     void authorise()
     {
         isAuthorised = true;
+    }
+    void setFine(int i){
+        this->fine = i;
+    }
+    void setRecord(string rec){
+        this->record = rec;
     }
 };
 
