@@ -1,0 +1,1 @@
+``sudo g++ -Wall -I/usr/include/cppconn -o main main.cpp -L/usr/lib -lmysqlcppconn -Wno-deprecated-declarations
