@@ -2,9 +2,6 @@
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
-#include <ctime>
-#include <iomanip>
-#include <chrono>
 
 // MySQL Libraries
 #include "mysql_connection.h"
@@ -20,41 +17,10 @@ using namespace std;
 #include "basic.cpp"
 #include "models.cpp"
 
-const string host = "localhost";
-const string user = "user";
-const string pass = "password";
-const string database = "rental";
+// Config files
+#include "config.cpp"
 
-int finePerDay = 10;
-float employeedis = 0.85;
 
-string getCurrentDate()
-{
-    time_t currentTime = time(nullptr);
-    tm *localTime = localtime(&currentTime);
-    ostringstream oss;
-    oss << put_time(localTime, "%Y-%m-%d");
-    return oss.str();
-}
-string today;
-
-chrono::system_clock::time_point stringToTimePoint(const string &dateStr)
-{
-    tm tm = {};
-    istringstream ss(dateStr);
-    ss >> get_time(&tm, "%Y-%m-%d");
-    time_t tt = mktime(&tm);
-    return chrono::system_clock::from_time_t(tt);
-}
-
-int dateDiffInDays(const string &dateStr1)
-{
-    auto timePoint1 = stringToTimePoint(dateStr1);
-    auto timePoint2 = stringToTimePoint(today);
-    auto diffInSeconds = chrono::duration_cast<chrono::seconds>(timePoint2 - timePoint1).count();
-    auto t = (diffInSeconds / (24 * 60 * 60));
-    return t > 0 ? t : 0;
-}
 
 class DatabaseConn
 {
@@ -84,6 +50,36 @@ public:
     UserTable(DatabaseConn *db)
     {
         this->conn = db->con;
+    }
+    
+    vector<User> getAllUsers()
+    {
+        vector<User> u;
+        try
+        {
+            sql::PreparedStatement *pstmt = conn->prepareStatement("SELECT * FROM users");
+            sql::ResultSet *rs = pstmt->executeQuery();
+            while (rs->next())
+            {
+                string username = rs->getString("username");
+                string password = rs->getString("password");
+                int id = rs->getInt("id");
+                string role = rs->getString("role");
+                if(role=="manager") continue;
+                int fine = rs->getInt("fine");
+                User u1(username, password, role);
+                if (password == pass)
+                    u1.authorise();
+                u1.setId(id);
+                u1.setFine(fine);
+                u.push_back(u1);
+            }
+        }
+        catch (const sql::SQLException &e)
+        {
+            cerr << "SQL error: " << e.what() << '\n';
+        }
+        return u;
     }
     User getUserByUsername(string username, string password)
     {
@@ -183,15 +179,6 @@ public:
     }
 };
 
-void PrintCarDetails(Car currCarr)
-{
-    cout << "Car ID: " << currCarr.id << endl;
-    cout << "Model: " << currCarr.model << endl;
-    cout << "Health: " << currCarr.health << endl;
-    cout << "Availability: " << (currCarr.availability == "admin" ? "Available For Renting" : currCarr.availability) << endl;
-    cout << "Price: " << currCarr.price << endl;
-    cout << "Due Date: " << (currCarr.due_date == "" ? "Not Rented" : currCarr.due_date) << endl;
-}
 
 class CarTable
 {
@@ -492,6 +479,18 @@ public:
         cartb->updateCarDetails(currCar);
         cout << "Car Returned Successfully!!\n\n";
     }
+    void SeeAllUsers(){
+        vector<User> uu = tb->getAllUsers();
+        if(uu.size()==0) return;
+        for(auto i: uu){
+            printDashes(20);
+            PrintUsers(i);
+        }
+        printDashes(20);
+    }
+    void UpdateUser(){
+        
+    }
 };
 
 class EmployeeCustomer
@@ -660,6 +659,9 @@ int main(int argc, const char **argv)
             case 2:
                 mang.DeleteUser();
                 break;
+            case 3:
+                mang.UpdateUser();
+                break;
             case 4:
                 mang.AddCar();
                 break;
@@ -677,6 +679,9 @@ int main(int argc, const char **argv)
                 break;
             case 9:
                 mang.returnCar();
+                break;
+            case 10:
+                mang.SeeAllUsers();
                 break;
             default:
                 return 0;

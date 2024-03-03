@@ -1,4 +1,5 @@
 #include <string>
+#include <iostream>
 using namespace std;
 
 class User
@@ -61,3 +62,21 @@ public:
         this->availability = availability;
     }
 };
+
+void PrintCarDetails(Car currCarr)
+{
+    cout << "Car ID: " << currCarr.id << endl;
+    cout << "Model: " << currCarr.model << endl;
+    cout << "Health: " << currCarr.health << endl;
+    cout << "Availability: " << (currCarr.availability == "admin" ? "Available For Renting" : currCarr.availability) << endl;
+    cout << "Price: " << currCarr.price << endl;
+    cout << "Due Date: " << (currCarr.due_date == "" ? "Not Rented" : currCarr.due_date) << endl;
+}
+
+void PrintUsers(User currUser){
+    cout<<"User ID: "<<currUser.id<<endl;
+    cout<<"Username: "<<currUser.username<<endl;
+    cout<<"Record: "<<currUser.record<<endl;
+    cout<<"Role: "<<currUser.role<<endl;
+    cout<<"Fine: "<<currUser.fine<<endl;
+}

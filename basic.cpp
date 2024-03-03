@@ -1,5 +1,39 @@
+#include <iomanip>
+#include <chrono>
+#include <string>
+#include <ctime>
 #include <iostream>
 using namespace std;
+
+
+
+string getCurrentDate()
+{
+    time_t currentTime = time(nullptr);
+    tm *localTime = localtime(&currentTime);
+    ostringstream oss;
+    oss << put_time(localTime, "%Y-%m-%d");
+    return oss.str();
+}
+string today;
+
+chrono::system_clock::time_point stringToTimePoint(const string &dateStr)
+{
+    tm tm = {};
+    istringstream ss(dateStr);
+    ss >> get_time(&tm, "%Y-%m-%d");
+    time_t tt = mktime(&tm);
+    return chrono::system_clock::from_time_t(tt);
+}
+
+int dateDiffInDays(const string &dateStr1)
+{
+    auto timePoint1 = stringToTimePoint(dateStr1);
+    auto timePoint2 = stringToTimePoint(today);
+    auto diffInSeconds = chrono::duration_cast<chrono::seconds>(timePoint2 - timePoint1).count();
+    auto t = (diffInSeconds / (24 * 60 * 60));
+    return t > 0 ? t : 0;
+}
 
 pair<string, string> handleSignIn()
 {
@@ -23,7 +57,8 @@ int ManagerOptions()
     cout << "7. See All cars" << endl;
     cout << "8. Rent car" << endl;
     cout << "9. Return car"<<endl;
-    cout << "10. Exit" << endl;
+    cout<<"10. See All Users"<<endl;
+    cout << "11. Exit" << endl;
     cout << "Select one of the options: ";
     int t;
     cin >> t;
