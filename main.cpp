@@ -63,6 +63,7 @@ public:
             {
                 string username = rs->getString("username");
                 string password = rs->getString("password");
+                string record = rs->getString("record");
                 int id = rs->getInt("id");
                 string role = rs->getString("role");
                 if(role=="manager") continue;
@@ -72,6 +73,7 @@ public:
                     u1.authorise();
                 u1.setId(id);
                 u1.setFine(fine);
+                u1.setRecord(record);
                 u.push_back(u1);
             }
         }
@@ -93,12 +95,14 @@ public:
                 string pass = rs->getString("password");
                 int id = rs->getInt("id");
                 string role = rs->getString("role");
+                string record = rs->getString("record");
                 int fine = rs->getInt("fine");
                 User u1(username, password, role);
                 if (password == pass)
                     u1.authorise();
                 u1.setId(id);
                 u1.setFine(fine);
+                u1.setRecord(record);
                 return u1;
             }
         }
@@ -113,9 +117,10 @@ public:
     {
         try
         {
-            sql::PreparedStatement *pstmt = conn->prepareStatement("UPDATE users SET fine = ? WHERE username = ?");
+            sql::PreparedStatement *pstmt = conn->prepareStatement("UPDATE users SET fine = ?,record=? WHERE username = ?");
             pstmt->setInt(1, u.fine);
-            pstmt->setString(2, u.username);
+            pstmt->setString(2,u.record);
+            pstmt->setString(3, u.username);
             pstmt->execute();
             delete pstmt;
             return true;
@@ -489,7 +494,28 @@ public:
         printDashes(20);
     }
     void UpdateUser(){
-        
+        cout<<"Enter Username: "; string username;cin>>username;
+        auto u = tb->getUserByUsername(username,"");
+        if(u.username == "") {
+            cout<<"No user found\n\n";
+            return;
+        }
+        string s;
+        cout<<"\nUser Details: ";PrintUsers(u);printDashes(20);cout<<endl;
+        int i; cout<<"1. Update Fine: \n2. Update Record:\n Choose One: ";cin>>i;
+        switch (i)
+        {
+        case 1:
+            cout<<"Enter fine: ";cin>>i; u.setFine(i);
+            break;
+        case 2: 
+            cout<<"Enter Record(good,moderate,bad): ";cin>>s;u.setRecord(s);
+            break;
+        default:
+            break;
+        }
+        tb->saveUser(u);
+        cout<<"User updated !!!"<<endl;
     }
 };
 
